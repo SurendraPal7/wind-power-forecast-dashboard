@@ -159,9 +159,59 @@ docker-compose up --build
 
 ---
 
-## Testing
+## Day-Ahead Forecast Selection Engine & Decision Policy
 
-Run backend tests using pytest:
+### Business Context & The Day-Ahead Decision Dilemma
+
+In the UK wholesale power market, wind generation forecasts are constantly revised as new meteorological readings and numerical weather prediction (NWP) runs become available.
+For any target 30-minute settlement period (`startTime`), the Elexon `WINDFOR` dataset contains dozens of forecast updates with distinct `publishTime` timestamps (ranging from multiple days ahead right up to settlement).
+
+**Critical Business Rule**:
+An electricity trading desk bidding in the Day-Ahead power auction (e.g. EPEX SPOT or Nord Pool UK) cannot make decisions using forecasts published **after** auction gate closure. Evaluating forecast performance using later intra-day forecasts introduces look-ahead bias and invalidates purchasing analytics.
+
+### Decision Cutoff Policy Architecture
+
+- **Default Policy (`UK_DAY_AHEAD_AUCTION`)**:
+  - `day_offset`: 1 (Decisions made on Day $D-1$ for delivery on Day $D$)
+  - `cutoff_time_utc`: `11:00` (Auction gate closure occurs at 11:00 UTC / 12:00 CET)
+  - `cutoff_datetime_utc` formula:
+    $$\text{Cutoff}(D) = (D - 1\text{ day}) \text{ at } 11:00:00\text{ UTC}$$
+- **Configurability**:
+  The policy is configurable via `DecisionCutoffPolicy` in [`backend/app/core/decision_cutoff_config.py`](file:///d:/assingment%201/backend/app/core/decision_cutoff_config.py) and via API query parameters (e.g., test 10:00 UTC, 12:00 UTC, or custom lead times).
+
+### Selection Logic Workflow
+
+For each target settlement period `startTime` on delivery day $D$:
+1. Calculate the exact decision cutoff $\text{Cutoff}(D)$.
+2. Collect all candidate forecast records matching `startTime`.
+3. Filter candidates:
+   $$\text{Eligible} = \{ \text{forecast} \mid \text{publishTime} \le \text{Cutoff}(D) \}$$
+4. If $\text{Eligible}$ is non-empty:
+   $$\text{Selected} = \arg\max_{\text{forecast} \in \text{Eligible}}(\text{publishTime})$$
+5. If $\text{Eligible}$ is empty:
+   The interval is marked as `UNAVAILABLE` with an explicit reason. **The engine never substitutes missing forecasts with zero or post-cutoff forecasts.**
+
+### Illustrative Real Example (Observed from Elexon Data)
+
+Target Delivery Interval: **`2026-01-02T12:00:00Z`**
+Configured Cutoff: **`2026-01-01T11:00:00Z`**
+
+| publishTime (UTC) | Forecast (MW) | Lead Time | Cutoff Comparison | Engine Decision |
+| :--- | :--- | :--- | :--- | :--- |
+| `2026-01-01T02:30:00Z` | 17,498 | 33.5h | $02:30 \le 11:00$ | `ELIGIBLE_SUPERSEDED` |
+| `2026-01-01T04:30:00Z` | 17,558 | 31.5h | $04:30 \le 11:00$ | `ELIGIBLE_SUPERSEDED` |
+| `2026-01-01T07:30:00Z` | 17,541 | 28.5h | $07:30 \le 11:00$ | `ELIGIBLE_SUPERSEDED` |
+| **`2026-01-01T09:30:00Z`** | **17,739** | **26.5h** | **$09:30 \le 11:00$** | **`SELECTED` (Latest Pre-Cutoff)** |
+| `2026-01-01T11:30:00Z` | 17,893 | 24.5h | $11:30 > 11:00$ | `POST_CUTOFF_EXCLUDED` |
+| `2026-01-01T15:30:00Z` | 18,144 | 20.5h | $15:30 > 11:00$ | `POST_CUTOFF_EXCLUDED` |
+| `2026-01-02T09:30:00Z` | 16,052 | 2.5h | $2026\text{-}01\text{-}02 > 11:00$ | `POST_CUTOFF_EXCLUDED` (Intra-Day) |
+
+### Limitations & Assumptions
+
+1. **Gate Closure Assumption**: The UK Day-Ahead wholesale market has multiple platforms (EPEX SPOT and Nord Pool UK). 11:00 UTC is the standard auction gate closure time, but the engine allows custom clock times to be specified per trading desk preference.
+2. **Clock Drift**: All timestamps are parsed as UTC; national holidays or British Summer Time (BST) transitions in non-winter months are handled via UTC normalization without ambiguous local clock shifts.
+
+---
 
 ```bash
 # From the backend directory

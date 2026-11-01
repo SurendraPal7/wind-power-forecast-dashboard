@@ -5,6 +5,8 @@ from app.services.actual_generation_service import ActualGenerationService
 from app.services.forecast_generation_service import ForecastGenerationService
 from app.services.data_cleaning_service import DataCleaningService
 from app.services.data_matching_service import DataMatchingService
+from app.services.forecast_selection_service import ForecastSelectionService
+from app.core.decision_cutoff_config import DecisionCutoffPolicy
 from app.schemas.generation import ConnectivityStatus, MatchedRecord
 
 router = APIRouter(prefix="/elexon", tags=["Elexon BMRS Integration"])
@@ -14,6 +16,7 @@ actual_service = ActualGenerationService(client)
 forecast_service = ForecastGenerationService(client)
 cleaning_service = DataCleaningService()
 matching_service = DataMatchingService()
+selection_service = ForecastSelectionService()
 
 
 @router.get("/connectivity", response_model=ConnectivityStatus)
@@ -143,3 +146,68 @@ def get_matched_wind_data(
         raise HTTPException(status_code=502, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Matching pipeline error: {str(e)}")
+
+
+@router.get("/forecast/day-ahead")
+def get_selected_day_ahead_forecasts(
+    delivery_date: str = Query("2026-01-02", description="Target delivery date (YYYY-MM-DD)"),
+    cutoff_time: str = Query("11:00", description="Day-Ahead decision cutoff time in UTC (HH:MM)"),
+    policy_name: str = Query("UK_DAY_AHEAD_AUCTION", description="Decision policy identifier")
+):
+    """
+    Execute the Day-Ahead forecast selection engine.
+    Applies the decision cutoff policy to choose the latest pre-cutoff forecast vintage
+    for every settlement period on delivery_date.
+    """
+    try:
+        policy = DecisionCutoffPolicy(
+            policy_name=policy_name,
+            cutoff_time_utc=cutoff_time,
+            day_offset=1
+        )
+        raw_forecasts = forecast_service.fetch_forecasts_for_target_day(target_date=delivery_date, lookback_days=1)
+        clean_forecasts, _ = cleaning_service.clean_forecast_records(raw_forecasts)
+
+        result = selection_service.select_forecasts_for_delivery_day(
+            forecast_records=clean_forecasts,
+            delivery_date=delivery_date,
+            policy=policy
+        )
+        return result.to_dict()
+    except ElexonAPIError as e:
+        raise HTTPException(status_code=502, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Forecast selection error: {str(e)}")
+
+
+@router.get("/forecast/vintages")
+def get_forecast_vintages(
+    target_start_time: str = Query("2026-01-02T12:00:00Z", description="Target delivery startTime (ISO UTC)"),
+    cutoff_time: str = Query("11:00", description="Day-Ahead decision cutoff time (HH:MM UTC)")
+):
+    """
+    Audit all historical publication vintages for a specific target delivery interval.
+    Shows the forecast evolution and identifies which vintage was selected vs excluded.
+    """
+    try:
+        delivery_date = target_start_time[:10]
+        policy = DecisionCutoffPolicy(cutoff_time_utc=cutoff_time, day_offset=1)
+        raw_forecasts = forecast_service.fetch_forecasts_for_target_day(target_date=delivery_date, lookback_days=1)
+        clean_forecasts, _ = cleaning_service.clean_forecast_records(raw_forecasts)
+
+        audit_trail = selection_service.get_vintage_audit_trail(
+            forecast_records=clean_forecasts,
+            target_startTime=target_start_time,
+            policy=policy
+        )
+        return {
+            "targetStartTime": target_start_time,
+            "decisionCutoffUTC": policy.calculate_cutoff_datetime(target_start_time).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "totalVintages": len(audit_trail),
+            "vintages": audit_trail
+        }
+    except ElexonAPIError as e:
+        raise HTTPException(status_code=502, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Vintage audit error: {str(e)}")
+
