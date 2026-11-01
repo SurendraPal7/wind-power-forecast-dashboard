@@ -78,6 +78,30 @@ class ForecastGenerationService:
             force_refresh=force_refresh
         )
 
+    def fetch_forecast_range(
+        self,
+        start_date: str,
+        end_date: str,
+        lookback_days: int = 1,
+        use_cache: bool = True,
+        force_refresh: bool = False
+    ) -> List[Dict[str, Any]]:
+        """
+        Fetch forecast vintages covering a multi-day target delivery date range.
+        Pub window spans from (start_date - lookback_days) to (end_date 23:59:59Z).
+        """
+        start_dt = to_utc_datetime(start_date)
+        end_dt = to_utc_datetime(end_date)
+        pub_start = start_dt - timedelta(days=lookback_days)
+        pub_end = end_dt + timedelta(days=1, seconds=-1)
+
+        return self.fetch_forecasts_by_publish_window(
+            publish_from=to_iso_utc_string(pub_start),
+            publish_to=to_iso_utc_string(pub_end),
+            use_cache=use_cache,
+            force_refresh=force_refresh
+        )
+
     def fetch_january_2026_forecasts(
         self,
         use_cache: bool = True,

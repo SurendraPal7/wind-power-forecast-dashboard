@@ -6,8 +6,10 @@ from app.services.forecast_generation_service import ForecastGenerationService
 from app.services.data_cleaning_service import DataCleaningService
 from app.services.data_matching_service import DataMatchingService
 from app.services.forecast_selection_service import ForecastSelectionService
+from app.services.forecast_accuracy_service import ForecastAccuracyService
 from app.core.decision_cutoff_config import DecisionCutoffPolicy
 from app.schemas.generation import ConnectivityStatus, MatchedRecord
+from app.schemas.accuracy import AccuracyAnalysisResponse
 
 router = APIRouter(prefix="/elexon", tags=["Elexon BMRS Integration"])
 
@@ -17,6 +19,10 @@ forecast_service = ForecastGenerationService(client)
 cleaning_service = DataCleaningService()
 matching_service = DataMatchingService()
 selection_service = ForecastSelectionService()
+accuracy_service = ForecastAccuracyService(
+    selection_service=selection_service,
+    matching_service=matching_service
+)
 
 
 @router.get("/connectivity", response_model=ConnectivityStatus)
@@ -210,4 +216,63 @@ def get_forecast_vintages(
         raise HTTPException(status_code=502, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Vintage audit error: {str(e)}")
+
+
+@router.get("/accuracy", response_model=AccuracyAnalysisResponse)
+def get_forecast_accuracy_analytics(
+    start_date: str = Query("2026-01-01", description="Evaluation start date (YYYY-MM-DD)"),
+    end_date: str = Query("2026-01-02", description="Evaluation end date (YYYY-MM-DD)"),
+    cutoff_time: str = Query("11:00", description="Day-Ahead decision cutoff time in UTC (HH:MM)"),
+    policy_name: str = Query("UK_DAY_AHEAD_AUCTION", description="Decision policy identifier"),
+    include_records: bool = Query(True, description="Include granular interval accuracy records")
+):
+    """
+    Step 5: Quantitative Forecast Accuracy Analysis Engine.
+    
+    Computes rigorous trading desk metrics:
+      - Absolute Error (|actual - forecast|)
+      - Mean Absolute Error (MAE in MW)
+      - Mean Absolute Percentage Error (MAPE %; excluding zero actuals)
+      - Forecast Bias (mean(forecast - actual) in MW)
+      - Root Mean Square Error (RMSE in MW)
+      - Interval Error Percentage
+      - Breakdown by full period, by day, and diurnal profile by 30-min settlement interval (1-48).
+    """
+    try:
+        policy = DecisionCutoffPolicy(
+            policy_name=policy_name,
+            cutoff_time_utc=cutoff_time,
+            day_offset=1
+        )
+
+        # 1. Fetch actuals for the evaluation period
+        raw_actuals = actual_service.fetch_actual_wind(start_date=start_date, end_date=end_date)
+        clean_actuals, _ = cleaning_service.clean_actual_records(raw_actuals)
+
+        # 2. Fetch day-ahead forecasts across the evaluation period (using 1 day lookback for vintages)
+        raw_forecasts = forecast_service.fetch_forecast_range(
+            start_date=start_date,
+            end_date=end_date,
+            lookback_days=1
+        )
+        clean_forecasts, _ = cleaning_service.clean_forecast_records(raw_forecasts)
+
+        # 3. Execute accuracy analytics engine
+        analysis = accuracy_service.analyze_accuracy(
+            actual_records=clean_actuals,
+            forecast_records=clean_forecasts,
+            start_date=start_date,
+            end_date=end_date,
+            policy=policy
+        )
+
+        if not include_records:
+            analysis.records = None
+
+        return analysis
+    except ElexonAPIError as e:
+        raise HTTPException(status_code=502, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Accuracy analysis engine error: {str(e)}")
+
 

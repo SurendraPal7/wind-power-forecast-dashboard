@@ -213,13 +213,47 @@ Configured Cutoff: **`2026-01-01T11:00:00Z`**
 
 ---
 
+## Quantitative Forecast Accuracy Engine
+
+### Mathematical Formulations & Definitions
+
+All error metrics are computed across valid matched 30-minute settlement observations ($N$):
+
+1. **Absolute Error ($e_i$)**:
+   $$e_i = | \text{actual}_i - \text{forecast}_i | \quad (\text{MW})$$
+2. **Mean Absolute Error (MAE)**:
+   $$\text{MAE} = \frac{1}{N} \sum_{i=1}^{N} | \text{actual}_i - \text{forecast}_i | \quad (\text{MW})$$
+   *Interpretation*: Expected absolute volume mismatch per 30-minute settlement period.
+3. **Mean Absolute Percentage Error (MAPE)**:
+   $$\text{MAPE} = \frac{1}{N_{\text{nonzero}}} \sum_{i \in \{i \mid \text{actual}_i > 0\}} \frac{| \text{actual}_i - \text{forecast}_i |}{\text{actual}_i} \times 100 \quad (\%)$$
+   *Critical Implementation Rule*: Any period with $\text{actual}_i = 0\text{ MW}$ is strictly excluded from the MAPE denominator to prevent infinite/undefined results, and the exact count of zero-actual periods is recorded.
+4. **Forecast Bias (Mean Signed Error)**:
+   $$\text{Bias} = \frac{1}{N} \sum_{i=1}^{N} (\text{forecast}_i - \text{actual}_i) \quad (\text{MW})$$
+   *Interpretation*:
+   - $\text{Bias} > 0$: Systematic over-forecasting (trader over-hedges, risking long imbalance penalties).
+   - $\text{Bias} < 0$: Systematic under-forecasting (trader under-hedges, risking short imbalance penalties).
+5. **Root Mean Square Error (RMSE)**:
+   $$\text{RMSE} = \sqrt{\frac{1}{N} \sum_{i=1}^{N} (\text{actual}_i - \text{forecast}_i)^2} \quad (\text{MW})$$
+   *Interpretation*: Heavily penalizes large forecasting misses that present peak liquidity risk.
+6. **Interval Error Percentage**:
+   $$\text{ErrorPct}_i = \frac{| \text{actual}_i - \text{forecast}_i |}{\text{actual}_i} \times 100 \quad (\% \text{ for } \text{actual}_i > 0)$$
+
+---
+
+## Testing
+
+Run backend tests using pytest:
+
 ```bash
 # From the backend directory
 pytest tests/ -v
 ```
 
-All 15 unit and integration tests verify:
-- Missing generation records are safely dropped and never fabricated as zeros.
+All 30 unit and integration tests verify:
+- Exact mathematical calculation of MAE, MAPE, RMSE, and Bias.
+- Safe zero-actual handling in MAPE without division-by-zero errors.
+- Missing values are reported rather than fabricated as zeros.
+- Missing generation records are safely dropped.
 - Deterministic deduplication on settlement intervals.
 - Strict timezone normalization to UTC.
 - Multi-vintage forecast handling and isolation.
