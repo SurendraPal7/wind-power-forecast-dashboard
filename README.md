@@ -128,13 +128,13 @@ source venv/bin/activate
 # Install dependencies
 pip install -r requirements.txt
 
-# Start FastAPI development server (runs on port 8000)
-uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+# Start FastAPI development server (runs on port 8080)
+uvicorn app.main:app --host 0.0.0.0 --port 8080 --reload
 ```
 
-- API Root: `http://localhost:8000/`
-- Interactive API Docs (Swagger): `http://localhost:8000/docs`
-- Health Endpoint: `http://localhost:8000/api/v1/health`
+- API Root: `http://localhost:8080/`
+- Interactive API Docs (Swagger): `http://localhost:8080/docs`
+- Health Endpoint: `http://localhost:8080/api/v1/health`
 
 ### 2. Frontend Setup
 
@@ -145,11 +145,11 @@ cd frontend
 # Install dependencies
 npm install
 
-# Start Vite development server (runs on port 5173)
+# Start Vite development server (runs on port 3000)
 npm run dev
 ```
 
-- Frontend Application: `http://localhost:5173/`
+- Frontend Application: `http://localhost:3000/`
 
 ### 3. Docker Compose Setup (Optional)
 

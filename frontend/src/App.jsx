@@ -61,7 +61,7 @@ function Home() {
                 Service Health & Integration Status
               </h2>
               <p className="text-sm text-slate-400 mt-1">
-                Real-time connectivity between React (Vite: 5173) and FastAPI (Port: 8000)
+                Real-time connectivity between React (Port: 3000) and FastAPI (Port: 8080)
               </p>
             </div>
             <button
@@ -87,7 +87,7 @@ function Home() {
                 </span>
               </div>
               <p className="text-2xl font-bold text-white">React + Vite</p>
-              <p className="text-xs text-slate-400 mt-1">Port: 5173 | Tailwind CSS & Recharts Loaded</p>
+              <p className="text-xs text-slate-400 mt-1">Port: 3000 | Tailwind CSS & Recharts Loaded</p>
             </div>
 
             {/* Backend Card */}
@@ -112,7 +112,7 @@ function Home() {
               </div>
               <p className="text-2xl font-bold text-white">FastAPI Service</p>
               <p className="text-xs text-slate-400 mt-1">
-                Port: 8000 | {health?.service || 'UK Wind Energy Analytics'}
+                Port: 8080 | {health?.service || 'UK Wind Energy Analytics'}
               </p>
             </div>
           </div>

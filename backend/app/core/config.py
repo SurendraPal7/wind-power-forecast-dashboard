@@ -8,11 +8,12 @@ class Settings(BaseSettings):
     PROJECT_NAME: str = "UK Wind Energy Forecast & Accuracy Analytics"
     API_V1_PREFIX: str = "/api/v1"
     BACKEND_HOST: str = "0.0.0.0"
-    BACKEND_PORT: int = 8000
+    BACKEND_PORT: int = 8080
     CORS_ORIGINS: Union[List[str], str] = [
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
         "http://localhost:5173",
         "http://127.0.0.1:5173",
-        "http://localhost:3000",
     ]
     ELEXON_BASE_URL: str = "https://data.elexon.co.uk/bmrs/api/v1"
     DEFAULT_DECISION_CUTOFF_TIME: str = "11:00"
