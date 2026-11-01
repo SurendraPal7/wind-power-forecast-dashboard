@@ -1,6 +1,7 @@
 # Python
 backend/venv/
 backend/.venv/
+backend/data_cache/
 **/__pycache__/
 *.py[cod]
 *$py.class

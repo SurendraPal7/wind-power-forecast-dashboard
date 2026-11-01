@@ -165,8 +165,17 @@ Run backend tests using pytest:
 
 ```bash
 # From the backend directory
-pytest tests/
+pytest tests/ -v
 ```
+
+All 15 unit and integration tests verify:
+- Missing generation records are safely dropped and never fabricated as zeros.
+- Deterministic deduplication on settlement intervals.
+- Strict timezone normalization to UTC.
+- Multi-vintage forecast handling and isolation.
+- Key-based (hash join) matching on target `startTime` (never array position).
+- Day-Ahead decision cutoff enforcement (pre-cutoff vintage selection).
+- Elexon client retry mechanisms and error handling.
 
 Run frontend build verification:
 
@@ -174,6 +183,83 @@ Run frontend build verification:
 # From the frontend directory
 npm run build
 ```
+
+---
+
+## Elexon BMRS API Integration & Observed Schemas
+
+The application directly queries the official Elexon Insights Solution stream endpoints:
+- Base URL: `https://data.elexon.co.uk/bmrs/api/v1`
+
+### 1. Actual Wind Generation (`/datasets/FUELHH/stream`)
+
+Query parameters:
+- `settlementDateFrom` / `settlementDateTo`: e.g. `2026-01-01`
+- `fuelType`: `WIND`
+
+Observed real API response structure:
+```json
+[
+  {
+    "dataset": "FUELHH",
+    "publishTime": "2026-01-01T00:30:00Z",
+    "startTime": "2026-01-01T00:00:00Z",
+    "settlementDate": "2026-01-01",
+    "settlementPeriod": 1,
+    "fuelType": "WIND",
+    "generation": 13756
+  }
+]
+```
+
+### 2. Forecast Wind Generation (`/datasets/WINDFOR/stream`)
+
+Query parameters:
+- `publishDateTimeFrom` / `publishDateTimeTo`: e.g. `2026-01-01T00:00:00Z` to `2026-01-01T23:59:59Z`
+
+Observed real API response structure:
+```json
+[
+  {
+    "dataset": "WINDFOR",
+    "publishTime": "2026-01-01T09:30:00Z",
+    "startTime": "2026-01-02T00:00:00Z",
+    "generation": 18699
+  }
+]
+```
+
+### 3. Matched Standardized Record (`/api/v1/elexon/matched`)
+
+Processed output after deduplication, normalization, and Day-Ahead cutoff evaluation:
+```json
+{
+  "startTime": "2026-01-02T00:00:00Z",
+  "publishTime": "2026-01-01T09:30:00Z",
+  "forecastGeneration": 18699.0,
+  "actualGeneration": 15228.0,
+  "absoluteError": 3471.0,
+  "error": 3471.0,
+  "percentageError": 22.79,
+  "settlementDate": "2026-01-02",
+  "settlementPeriod": 1
+}
+```
+
+---
+
+## Verification Endpoints (FastAPI Port: 8080)
+
+Test the integration directly via curl or browser:
+
+- **Connectivity Probe**:
+  `GET http://localhost:8080/api/v1/elexon/connectivity`
+- **Actual Wind Records**:
+  `GET http://localhost:8080/api/v1/elexon/actual?start_date=2026-01-01&end_date=2026-01-01`
+- **Forecast Wind Records**:
+  `GET http://localhost:8080/api/v1/elexon/forecast?target_date=2026-01-01`
+- **Matched Records (Day-Ahead Cutoff at 11:00 UTC)**:
+  `GET http://localhost:8080/api/v1/elexon/matched?delivery_date=2026-01-02&cutoff_time=11:00`
 
 ---
 

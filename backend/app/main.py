@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.api.health import router as health_router
+from app.api.elexon import router as elexon_router
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -21,6 +22,7 @@ app.add_middleware(
 # Register routers
 app.include_router(health_router, prefix="")
 app.include_router(health_router, prefix=settings.API_V1_PREFIX)
+app.include_router(elexon_router, prefix=settings.API_V1_PREFIX)
 
 
 @app.get("/")
