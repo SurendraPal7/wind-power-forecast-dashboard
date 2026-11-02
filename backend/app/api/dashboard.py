@@ -214,7 +214,7 @@ def get_dashboard_comparison(
             "periodStart": start_date,
             "periodEnd": end_date,
             "decisionCutoffTimeUTC": cutoff_time,
-            "totalRecords": len(selected),
+            "totalRecords": len(matched),
             "records": selected
         }
     except ElexonAPIError as e:
