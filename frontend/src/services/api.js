@@ -1,55 +1,95 @@
 import axios from 'axios';
 
+/**
+ * Centralized Axios API Client
+ * Configures base URL from environment variable VITE_API_BASE_URL,
+ * with fallback to local proxy /api/v1.
+ */
+const rawBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
+const apiBaseUrl = rawBaseUrl.endsWith('/api/v1') 
+  ? rawBaseUrl 
+  : `${rawBaseUrl.replace(/\/+$/, '')}/api/v1`;
+
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL ? `${import.meta.env.VITE_API_BASE_URL}/api/v1` : '/api/v1',
+  baseURL: apiBaseUrl,
   timeout: 45000,
   headers: {
     'Content-Type': 'application/json',
+    'Accept': 'application/json',
   },
 });
 
+// Request interceptor for logging & instrumentation
+api.interceptors.request.use(
+  (config) => {
+    config.metadata = { startTime: new Date() };
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
+// Response interceptor with error normalization & friendly messaging
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    // Extract friendly error message from FastAPI detail or network error
+    let message = 'An unexpected error occurred while communicating with the analytics backend.';
+    
+    if (error.response) {
+      const data = error.response.data;
+      if (typeof data?.detail === 'string') {
+        message = data.detail;
+      } else if (Array.isArray(data?.detail)) {
+        message = data.detail.map(d => `${d.loc?.join('.') || 'param'}: ${d.msg}`).join(', ');
+      } else if (data?.message) {
+        message = data.message;
+      } else {
+        message = `Server returned error HTTP ${error.response.status}: ${error.response.statusText}`;
+      }
+    } else if (error.request) {
+      message = 'Unable to connect to the backend server. Please verify the FastAPI service is running on port 8080.';
+    } else {
+      message = error.message || message;
+    }
+
+    // Attach normalized message to error
+    error.normalizedMessage = message;
+    return Promise.reject(error);
+  }
+);
+
+/**
+ * Helper to execute an async request with automatic retry on transient failure.
+ *
+ * @param {Function} requestFn - Function returning a promise
+ * @param {number} maxRetries - Maximum number of retry attempts (default 2)
+ * @param {number} delayMs - Delay in ms between retries (default 1000)
+ */
+export async function withRetry(requestFn, maxRetries = 2, delayMs = 1000) {
+  let lastError;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await requestFn();
+    } catch (err) {
+      lastError = err;
+      // Do not retry on client 4xx validation errors
+      if (err.response && err.response.status >= 400 && err.response.status < 500) {
+        throw err;
+      }
+      if (attempt < maxRetries) {
+        await new Promise((res) => setTimeout(res, delayMs * Math.pow(1.5, attempt)));
+      }
+    }
+  }
+  throw lastError;
+}
+
+/**
+ * Health check endpoint
+ * GET /api/v1/health
+ */
 export const getHealth = async () => {
   const response = await api.get('/health');
-  return response.data;
-};
-
-export const getFilters = async () => {
-  const response = await api.get('/filters');
-  return response.data;
-};
-
-export const getDashboardSummary = async (params = {}) => {
-  const response = await api.get('/dashboard/summary', { params });
-  return response.data;
-};
-
-export const getDashboardComparison = async (params = {}) => {
-  const response = await api.get('/dashboard/comparison', { params });
-  return response.data;
-};
-
-export const getDashboardAccuracy = async (params = {}) => {
-  const response = await api.get('/dashboard/accuracy', { params });
-  return response.data;
-};
-
-export const getDashboardDaily = async (params = {}) => {
-  const response = await api.get('/dashboard/daily', { params });
-  return response.data;
-};
-
-export const getActualGeneration = async (params = {}) => {
-  const response = await api.get('/actual-generation', { params });
-  return response.data;
-};
-
-export const getForecastGeneration = async (params = {}) => {
-  const response = await api.get('/forecast-generation', { params });
-  return response.data;
-};
-
-export const getForecastHistory = async (params = {}) => {
-  const response = await api.get('/forecast-history', { params });
   return response.data;
 };
 

@@ -4,7 +4,7 @@ import DateRangeFilter from '../components/DateRangeFilter';
 import ForecastHistoryTable from '../components/ForecastHistoryTable';
 import LoadingState from '../components/LoadingState';
 import ErrorState from '../components/ErrorState';
-import { getForecastHistory } from '../services/api';
+import { getForecastHistory } from '../services/forecastService';
 import { History, Calendar, Clock, ArrowRight } from 'lucide-react';
 
 export default function ForecastHistory() {

@@ -2,14 +2,15 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import {
   getDashboardSummary,
   getDashboardComparison,
-  getDashboardAccuracy,
   getDashboardDaily,
   getFilters
-} from '../services/api';
+} from '../services/dashboardService';
+import { getDashboardAccuracy } from '../services/accuracyService';
 
 const DashboardContext = createContext();
 
 export function DashboardProvider({ children }) {
+  // Default to January 2026 data range (Jan 1 - Jan 3)
   const [startDate, setStartDate] = useState('2026-01-01');
   const [endDate, setEndDate] = useState('2026-01-03');
   const [cutoffTime, setCutoffTime] = useState('11:00');
@@ -26,13 +27,21 @@ export function DashboardProvider({ children }) {
   const [error, setError] = useState(null);
   const [lastRefreshed, setLastRefreshed] = useState(new Date().toISOString());
 
-  // Load filter metadata once on mount
+  // Load backend filter metadata once on mount
   useEffect(() => {
     getFilters()
-      .then(meta => setFilterMeta(meta))
-      .catch(err => console.warn('Could not load filters metadata:', err));
+      .then((meta) => {
+        setFilterMeta(meta);
+        if (meta?.defaultCutoffTimeUTC) {
+          setCutoffTime(meta.defaultCutoffTimeUTC);
+        }
+      })
+      .catch((err) => {
+        console.warn('Could not load filters metadata:', err?.normalizedMessage || err.message);
+      });
   }, []);
 
+  // Fetch all primary dashboard metrics concurrently with auto-retry
   const fetchData = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -58,12 +67,14 @@ export function DashboardProvider({ children }) {
       setLastRefreshed(new Date().toISOString());
     } catch (err) {
       console.error('Failed to load dashboard data:', err);
-      setError(err.response?.data?.detail || err.message || 'Failed to fetch analytics from backend.');
+      const userMessage = err.normalizedMessage || err.response?.data?.detail || err.message || 'Failed to fetch analytics from backend.';
+      setError(userMessage);
     } finally {
       setLoading(false);
     }
   }, [startDate, endDate, cutoffTime, policyName]);
 
+  // Refetch whenever filters change
   useEffect(() => {
     fetchData();
   }, [fetchData]);
