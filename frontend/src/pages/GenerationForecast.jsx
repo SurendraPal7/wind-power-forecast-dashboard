@@ -4,7 +4,7 @@ import DateRangeFilter from '../components/DateRangeFilter';
 import KPICard from '../components/KPICard';
 import GenerationChart from '../components/GenerationChart';
 import DataTable from '../components/DataTable';
-import LoadingState from '../components/LoadingState';
+import SkeletonLoader from '../components/SkeletonLoader';
 import ErrorState from '../components/ErrorState';
 import { Wind, Activity, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 
@@ -12,7 +12,14 @@ export default function GenerationForecast() {
   const { summary, comparison, loading, error, refreshData } = useDashboard();
 
   if (loading && !comparison) {
-    return <LoadingState message="Loading wind forecast time series..." />;
+    return (
+      <div className="space-y-6">
+        <DateRangeFilter />
+        <SkeletonLoader type="card" count={3} />
+        <SkeletonLoader type="chart" />
+        <SkeletonLoader type="table" count={5} />
+      </div>
+    );
   }
 
   if (error && !comparison) {

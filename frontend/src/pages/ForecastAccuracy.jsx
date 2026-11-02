@@ -3,15 +3,22 @@ import { useDashboard } from '../context/DashboardContext';
 import DateRangeFilter from '../components/DateRangeFilter';
 import KPICard from '../components/KPICard';
 import AccuracyChart from '../components/AccuracyChart';
-import LoadingState from '../components/LoadingState';
+import SkeletonLoader from '../components/SkeletonLoader';
 import ErrorState from '../components/ErrorState';
-import { Target, Percent, TrendingUp, AlertCircle, Info, ShieldCheck } from 'lucide-react';
+import { Target, Percent, TrendingUp, AlertCircle, Info } from 'lucide-react';
 
 export default function ForecastAccuracy() {
   const { summary, accuracy, daily, loading, error, refreshData } = useDashboard();
 
   if (loading && !accuracy) {
-    return <LoadingState message="Calculating quantitative accuracy metrics..." />;
+    return (
+      <div className="space-y-6">
+        <DateRangeFilter />
+        <SkeletonLoader type="card" count={4} />
+        <SkeletonLoader type="chart" />
+        <SkeletonLoader type="table" count={5} />
+      </div>
+    );
   }
 
   if (error && !accuracy) {

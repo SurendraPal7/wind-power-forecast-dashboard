@@ -5,7 +5,7 @@ import KPICard from '../components/KPICard';
 import GenerationChart from '../components/GenerationChart';
 import AccuracyChart from '../components/AccuracyChart';
 import DataTable from '../components/DataTable';
-import LoadingState from '../components/LoadingState';
+import SkeletonLoader from '../components/SkeletonLoader';
 import ErrorState from '../components/ErrorState';
 import { Wind, Activity, Target, Percent, TrendingUp, CheckCircle } from 'lucide-react';
 
@@ -13,7 +13,14 @@ export default function Overview() {
   const { summary, comparison, accuracy, daily, loading, error, refreshData } = useDashboard();
 
   if (loading && !summary) {
-    return <LoadingState message="Loading UK Wind Energy Analytics..." />;
+    return (
+      <div className="space-y-6">
+        <DateRangeFilter />
+        <SkeletonLoader type="card" count={6} />
+        <SkeletonLoader type="chart" />
+        <SkeletonLoader type="table" count={6} />
+      </div>
+    );
   }
 
   if (error && !summary) {
