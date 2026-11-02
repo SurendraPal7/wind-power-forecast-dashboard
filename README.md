@@ -347,6 +347,148 @@ Test the integration directly via curl or browser:
 
 ---
 
+## REST API Specification (FastAPI on Port 8080)
+
+All endpoints reside under the `/api/v1` namespace and are documented via interactive Swagger UI at [http://localhost:8080/docs](http://localhost:8080/docs).
+
+### 1. Health Status
+`GET /api/v1/health`
+```json
+{
+  "status": "ok",
+  "service": "UK Wind Energy Forecast & Accuracy Analytics",
+  "environment": "development",
+  "timestamp_utc": "2026-11-02T16:35:00Z",
+  "version": "1.0.0"
+}
+```
+
+### 2. Actual Generation
+`GET /api/v1/actual-generation?start_date=2026-01-01&end_date=2026-01-01&limit=48`
+```json
+{
+  "dataset": "FUELHH",
+  "fuelType": "WIND",
+  "startDate": "2026-01-01",
+  "endDate": "2026-01-01",
+  "count": 48,
+  "records": [
+    {
+      "startTime": "2026-01-01T00:00:00Z",
+      "generation": 13756.0,
+      "fuelType": "WIND",
+      "publishTime": "2026-01-01T00:30:00Z",
+      "settlementDate": "2026-01-01",
+      "settlementPeriod": 1
+    }
+  ]
+}
+```
+
+### 3. Forecast Generation
+`GET /api/v1/forecast-generation?delivery_date=2026-01-02&cutoff_time=11:00`
+```json
+{
+  "dataset": "WINDFOR",
+  "deliveryDate": "2026-01-02",
+  "decisionCutoffUTC": "2026-01-01T11:00:00Z",
+  "policy": "UK_DAY_AHEAD_AUCTION",
+  "count": 24,
+  "unavailableCount": 24,
+  "records": [
+    {
+      "settlementPeriod": 1,
+      "startTime": "2026-01-02T00:00:00Z",
+      "publishTime": "2026-01-01T09:30:00Z",
+      "generation": 18699.0,
+      "leadTimeHours": 14.5
+    }
+  ]
+}
+```
+
+### 4. Dashboard Summary
+`GET /api/v1/dashboard/summary?start_date=2026-01-01&end_date=2026-01-03&cutoff_time=11:00`
+```json
+{
+  "periodStart": "2026-01-01",
+  "periodEnd": "2026-01-03",
+  "decisionCutoffPolicy": "UK_DAY_AHEAD_AUCTION",
+  "decisionCutoffTimeUTC": "11:00",
+  "averageForecastMW": 17859.354,
+  "averageActualMW": 15231.771,
+  "maeMW": 2627.583,
+  "mapePercent": 17.41,
+  "rmseMW": 2864.351,
+  "forecastBiasMW": 2627.583,
+  "totalMatchedObservations": 48,
+  "missingActualCount": 1704,
+  "missingForecastCount": 96,
+  "zeroActualCount": 0,
+  "dataCompletenessPercent": 2.6
+}
+```
+
+### 5. Dashboard Comparison (Charts)
+`GET /api/v1/dashboard/comparison?start_date=2026-01-01&end_date=2026-01-03&cutoff_time=11:00`
+```json
+{
+  "periodStart": "2026-01-01",
+  "periodEnd": "2026-01-03",
+  "decisionCutoffTimeUTC": "11:00",
+  "totalRecords": 48,
+  "records": [
+    {
+      "startTime": "2026-01-02T00:00:00Z",
+      "publishTime": "2026-01-01T09:30:00Z",
+      "settlementDate": "2026-01-02",
+      "settlementPeriod": 1,
+      "actualGeneration": 15228.0,
+      "forecastGeneration": 18699.0,
+      "absoluteError": 3471.0,
+      "error": 3471.0,
+      "percentageError": 22.79
+    }
+  ]
+}
+```
+
+### 6. Dashboard Accuracy
+`GET /api/v1/dashboard/accuracy?start_date=2026-01-01&end_date=2026-01-03&cutoff_time=11:00`
+Returns aggregate summary, diurnal profile across settlement periods 1–48, and domain metric explanations.
+
+### 7. Dashboard Daily Breakdown
+`GET /api/v1/dashboard/daily?start_date=2026-01-01&end_date=2026-01-03&cutoff_time=11:00`
+```json
+{
+  "periodStart": "2026-01-01",
+  "periodEnd": "2026-01-03",
+  "totalDays": 2,
+  "dailyMetrics": [
+    {
+      "date": "2026-01-02",
+      "observationCount": 24,
+      "maeMW": 3156.667,
+      "mapePercent": 20.907,
+      "rmseMW": 3212.854,
+      "biasMW": 3156.667,
+      "averageActualMW": 15208.625,
+      "averageForecastMW": 18365.292
+    }
+  ]
+}
+```
+
+### 8. Forecast History & Vintage Audit
+`GET /api/v1/forecast-history?start_time=2026-01-02T12:00:00Z&cutoff_time=11:00`
+Returns all 16 historical revisions published in Elexon's `WINDFOR` stream, flagging the selected pre-cutoff vintage and excluded post-cutoff revisions.
+
+### 9. Filters & Configuration Metadata
+`GET /api/v1/filters`
+Returns date boundary limits (January 2026), allowed cutoff hours (`09:00`, `10:00`, `11:00`, `12:00`, `14:00`), and auction policies.
+
+---
+
 ## AI Tools Acknowledgment
 
 As required by the assignment guidelines, this project development was assisted by:
