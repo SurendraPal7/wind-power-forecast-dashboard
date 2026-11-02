@@ -151,11 +151,59 @@ npm run dev
 
 - Frontend Application: `http://localhost:3000/`
 
-### 3. Docker Compose Setup (Optional)
+### 3. Docker Compose Setup (Production & Multi-Container)
 
-```bash
-docker-compose up --build
-```
+The application is fully containerized with dedicated `frontend/Dockerfile`, `backend/Dockerfile`, `.dockerignore` files, and `docker-compose.yml`.
+
+#### Key Specifications:
+- **Frontend Service**:
+  - Multi-stage build (`node:20-alpine` builder → `nginx:alpine` runtime).
+  - Exposed on port `5173` (`http://localhost:5173`).
+  - Automatic Nginx reverse-proxy routes `/api/` traffic directly to the internal backend container.
+  - Health check: `wget -qO- http://localhost:5173/ || exit 1`.
+- **Backend Service**:
+  - Python 3.10 slim with production ASGI server (`uvicorn --workers 2`).
+  - Exposed on port `8000` (`http://localhost:8000`).
+  - Health check: Python `urllib` probe on `http://localhost:8000/api/v1/health`.
+- **Internal Networking**:
+  - Dedicated bridge network `uk-wind-network` allowing seamless inter-service communication (`http://backend:8000`).
+  - Backend maintains direct outbound HTTPS connectivity to Elexon BMRS Open Data APIs.
+
+#### Standard Docker Commands:
+
+1. **Build container images**:
+   ```bash
+   docker compose build
+   ```
+
+2. **Start the application stack**:
+   ```bash
+   docker compose up -d
+   ```
+   *Dashboard*: [http://localhost:5173](http://localhost:5173)  
+   *Backend Swagger Docs*: [http://localhost:8000/docs](http://localhost:8000/docs)  
+   *API Health*: [http://localhost:8000/api/v1/health](http://localhost:8000/api/v1/health)
+
+3. **Stop the containers**:
+   ```bash
+   docker compose down
+   ```
+
+4. **View live container logs**:
+   ```bash
+   docker compose logs -f
+   ```
+
+5. **Inspect health check status**:
+   ```bash
+   docker compose ps
+   ```
+
+#### Troubleshooting Docker Deployments:
+- **Port Conflict on 8000 or 5173**: If ports `8000` or `5173` are in use by other processes, alter the host port mapping in `docker-compose.yml` (e.g. `"8081:8000"` or `"3001:5173"`).
+- **Backend Unhealthy / Connection Refused**: Verify that outbound HTTPS access to `data.elexon.co.uk` is permitted by your firewall or VPN.
+- **Docker Desktop Service Not Running**: Ensure Docker Desktop is started and WSL 2 / Hyper-V backend is running (`docker info`).
+- **Nginx CORS Errors**: The backend whitelists `http://localhost:5173` and `http://127.0.0.1:5173` in `CORS_ORIGINS`. If deploying to a custom domain, add your domain to `CORS_ORIGINS` in `docker-compose.yml`.
 
 ---
 
