@@ -2,13 +2,22 @@ import axios from 'axios';
 
 /**
  * Centralized Axios API Client
- * Configures base URL from environment variable VITE_API_BASE_URL,
- * with fallback to local proxy /api/v1.
+ * Configures base URL from environment variable VITE_API_BASE_URL.
+ * In production, if not explicitly provided, falls back cleanly to '/api/v1' (same-origin reverse proxy)
+ * instead of breaking with hardcoded localhost URLs.
  */
-const rawBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
-const apiBaseUrl = rawBaseUrl.endsWith('/api/v1') 
-  ? rawBaseUrl 
-  : `${rawBaseUrl.replace(/\/+$/, '')}/api/v1`;
+const envBaseUrl = import.meta.env.VITE_API_BASE_URL;
+let apiBaseUrl;
+
+if (envBaseUrl) {
+  apiBaseUrl = envBaseUrl.endsWith('/api/v1')
+    ? envBaseUrl
+    : `${envBaseUrl.replace(/\/+$/, '')}/api/v1`;
+} else if (import.meta.env.PROD) {
+  apiBaseUrl = '/api/v1';
+} else {
+  apiBaseUrl = 'http://localhost:8080/api/v1';
+}
 
 const api = axios.create({
   baseURL: apiBaseUrl,
