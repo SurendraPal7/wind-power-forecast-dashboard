@@ -7,16 +7,16 @@ import axios from 'axios';
  * instead of breaking with hardcoded localhost URLs.
  */
 const envBaseUrl = import.meta.env.VITE_API_BASE_URL;
-let apiBaseUrl;
+let apiBaseUrl = '/api/v1';
 
-if (envBaseUrl) {
+if (envBaseUrl && !(import.meta.env.PROD && (envBaseUrl.includes('localhost') || envBaseUrl.includes('127.0.0.1')))) {
   apiBaseUrl = envBaseUrl.endsWith('/api/v1')
     ? envBaseUrl
     : `${envBaseUrl.replace(/\/+$/, '')}/api/v1`;
 } else if (import.meta.env.PROD) {
   apiBaseUrl = '/api/v1';
 } else {
-  apiBaseUrl = 'http://localhost:8080/api/v1';
+  apiBaseUrl = '/api/v1';
 }
 
 const api = axios.create({
@@ -56,7 +56,7 @@ api.interceptors.response.use(
         message = `Server returned error HTTP ${error.response.status}: ${error.response.statusText}`;
       }
     } else if (error.request) {
-      message = 'Unable to connect to the backend server. Please verify the FastAPI service is running on port 8080.';
+      message = 'Unable to connect to the backend server. Please verify network connectivity or check if the backend service is reachable.';
     } else {
       message = error.message || message;
     }
