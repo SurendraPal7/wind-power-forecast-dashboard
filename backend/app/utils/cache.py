@@ -1,11 +1,17 @@
 import os
 import json
 import hashlib
+import tempfile
 from typing import Any, Optional
 from pathlib import Path
 
-CACHE_DIR = Path(__file__).resolve().parent.parent.parent / "data_cache"
-CACHE_DIR.mkdir(parents=True, exist_ok=True)
+# In serverless environments (e.g. Vercel, AWS Lambda), fallback to writable /tmp
+try:
+    CACHE_DIR = Path(__file__).resolve().parent.parent.parent / "data_cache"
+    CACHE_DIR.mkdir(parents=True, exist_ok=True)
+except (OSError, PermissionError):
+    CACHE_DIR = Path(tempfile.gettempdir()) / "uk_wind_data_cache"
+    CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def _get_cache_path(key: str) -> Path:
